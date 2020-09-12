@@ -5,6 +5,7 @@ from __future__ import absolute_import
 from __future__ import print_function
 import codecs
 import json
+import jsonmerge
 import os
 import re
 import time
@@ -42,7 +43,6 @@ def download_file(local_filename, url, clobber=False):
 
     return True
 
-
 def download_json(local_filename, url, clobber=False):
     """Download the given JSON file, and pretty-print before we output it."""
     if download_file(local_filename, url, clobber):
@@ -51,9 +51,26 @@ def download_json(local_filename, url, clobber=False):
 
         # write reformatted json
         with open(local_filename, 'w') as json_file:
-            json_file.write(json.dumps(original_data, sort_keys=True, indent=2,
-                                       separators=(',', ': ')))
+            json_file.write(json.dumps(original_data, sort_keys=True, indent=2, separators=(',', ': ')))
 
+        # merge/save the previous json to save deleted comments
+        local_filename_merged = os.path.splitext(local_filename)[0] + '.merged.json'
+        if not os.path.exists(local_filename_merged):
+            print(local_filename_merged + " doesn't exist: CREATING!")
+            with open(local_filename_merged, 'w+') as temp_f:
+                temp_f.write('{"posts":[]}')
+        previous_json = {}
+        with open(local_filename_merged, 'r+') as old_json_file:
+            previous_json = json.loads(old_json_file.read())
+        with open(local_filename_merged, 'w+') as merge_json_file:
+            merged_json = jsonmerge.merge(original_data, previous_json, {
+                'properties': {
+                    'posts': {
+                        'mergeStrategy': 'arrayMergeByIndex'
+                    }
+                }
+            })
+            merge_json_file.write(json.dumps(merged_json, sort_keys=True, indent=2, separators=(',', ': ')))
 
 def file_replace(local_filename, pattern, replacement):
     """Regex replace in the given file."""
